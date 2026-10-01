@@ -1,70 +1,25 @@
 <?php
-require_once 'db.php';
+require_once 'config/db.php';
 
-$message = "";
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'register') {
-    $fullname = trim($_POST['fullname'] ?? '');
-    $id_card = trim($_POST['id_card'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $distance = trim($_POST['distance'] ?? '');
-    $shirt_size = trim($_POST['shirt_size'] ?? '');
-
-    if (!empty($fullname) && !empty($id_card) && !empty($phone) && !empty($distance) && !empty($shirt_size)) {
-        $stmt = $conn->prepare("INSERT INTO registrations (fullname, id_card, phone, distance, shirt_size) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssss", $fullname, $id_card, $phone, $distance, $shirt_size);
-
-        if ($stmt->execute()) {
-            $message = "ลงทะเบียนงานวิ่ง IT RUN สำเร็จ! ข้อมูลถูกบันทึกลงฐานข้อมูลแล้ว";
-        } else {
-            $message = "เกิดข้อผิดพลาดในการบันทึกข้อมูล: " . $stmt->error;
-        }
-        $stmt->close();
-    } else {
-        $message = "กรุณากรอกข้อมูลให้ครบทุกช่อง";
+// ดึงหมวดหมู่แอร์
+$categories = [];
+if ($db_connected) {
+    $res = $conn->query("SELECT * FROM categories");
+    while ($row = $res->fetch_assoc()) {
+        $categories[] = $row;
     }
 }
 
-// ข้อมูลงานวิ่ง IT (Featured Event)
-$featured_event = [
-    'title' => 'IT & TECH NIGHT RUN 2026',
-    'slogan' => '“วิ่งเพื่อสุขภาพ บัคอย่าหาทำ โค้ดอย่าให้พัง Run For Cyber Health”',
-    'date' => '22 พฤศจิกายน 2569',
-    'location' => 'อุทยานวิทยาศาสตร์ประเทศไทย (Thailand Science Park) ปทุมธานี',
-    'organizer' => 'IT Runner Club & Developer Community',
-    'image' => 'https://images.unsplash.com/photo-1532444458054-01a7dd3e9fca?auto=format&fit=crop&w=800&q=80'
-];
-
-// ข้อมูลงานวิ่งสไตล์ IT อื่นๆ
-$events = [
-    [
-        'title' => 'Cyber Hackathon Trail Run 2026',
-        'date' => '5 ธันวาคม 2569',
-        'location' => 'สวนวชิรเบญจทัศ (สวนรถไฟ) กรุงเทพฯ',
-        'image' => 'https://images.unsplash.com/photo-1530549387789-4c1017266635?auto=format&fit=crop&w=500&q=80',
-        'tag' => 'เปิดใหม่'
-    ],
-    [
-        'title' => 'DevOps Charity Mini Marathon 10K',
-        'date' => '22 พฤศจิกายน 2569',
-        'location' => 'มหาวิทยาลัยเกษตรศาสตร์ บางเขน',
-        'image' => 'https://images.unsplash.com/photo-1452626038306-9aae5e071dd3?auto=format&fit=crop&w=500&q=80',
-        'tag' => 'เปิดใหม่'
-    ],
-    [
-        'title' => 'Cloud Native Fun Run & Health Tech',
-        'date' => '4 ตุลาคม 2569',
-        'location' => 'สวนหลวง ร.9 กรุงเทพฯ',
-        'image' => 'https://images.unsplash.com/photo-1516132006923-6cf348e5dee2?auto=format&fit=crop&w=500&q=80',
-        'tag' => 'ยอดนิยม'
-    ],
-    [
-        'title' => 'Full-Stack City Night Run 2026',
-        'date' => '26 กันยายน 2569',
-        'location' => 'ลานคนเมือง เสาชิงช้า กรุงเทพฯ',
-        'image' => 'https://images.unsplash.com/photo-1513593771513-7b58b6c4af38?auto=format&fit=crop&w=500&q=80',
-        'tag' => 'ยอดนิยม'
-    ]
-];
+// ค้นหาติดตามสถานะ
+$search = trim($_GET['search'] ?? '');
+$my_tickets = [];
+if ($db_connected && $search !== '') {
+    $safe_search = $conn->real_escape_string($search);
+    $res = $conn->query("SELECT t.*, c.category_name, u.fullname as tech_name FROM tickets t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN users u ON t.technician_id = u.id WHERE t.ticket_number LIKE '%$safe_search%' OR t.location LIKE '%$safe_search%' ORDER BY t.id DESC");
+    while ($row = $res->fetch_assoc()) {
+        $my_tickets[] = $row;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -72,342 +27,251 @@ $events = [
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RUNLAH - IT RUNNING HUB</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>ระบบแจ้งซ่อมเครื่องปรับอากาศ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body {
-            font-family: 'Prompt', sans-serif;
+            font-family: 'Kanit', sans-serif;
+            background: #f8fafc;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08) !important;
+        }
+
+        .btn {
+            transition: all 0.2s ease;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
         }
     </style>
 </head>
 
-<body class="bg-gray-950 text-gray-100 min-h-screen">
+<body>
 
-    <?php if (!empty($message)): ?>
-        <script>
-            alert("<?= $message; ?>");
-        </script>
-    <?php endif; ?>
-
-    <!-- Header Navigation -->
-    <header class="bg-gray-900/90 backdrop-blur-md border-b border-cyan-500/30 sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center space-x-8">
-                <a href="index.php" class="flex items-center space-x-2 text-cyan-400 font-bold text-2xl tracking-wider">
-                    <span class="text-3xl animate-pulse">⚡</span>
-                    <span
-                        class="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">IT-RUNLAH</span>
-                </a>
-                <nav class="hidden md:flex space-x-6 text-sm font-medium">
-                    <a href="index.php" class="text-cyan-400 border-b-2 border-cyan-400 pb-1">หน้าหลัก</a>
-                    <a href="calendar.php" class="text-gray-400 hover:text-cyan-400 transition">ปฏิทินงานวิ่ง IT</a>
-                    <a href="results.php" class="text-gray-400 hover:text-cyan-400 transition">ผลการแข่งขัน</a>
-                    <a href="admin.php" class="text-gray-400 hover:text-cyan-400 transition">สำหรับผู้จัดการระบบ</a>
-                </nav>
-            </div>
-            <div class="flex items-center space-x-4">
-                <div class="relative hidden sm:block">
-                    <input type="text" placeholder="ค้นหางานวิ่งไอที..."
-                        class="bg-gray-800 text-gray-200 border border-gray-700 rounded-full py-1.5 px-4 pr-10 text-sm focus:outline-none focus:border-cyan-500 w-52">
-                    <button class="absolute right-3 top-2 text-gray-400">🔍</button>
-                </div>
-                <button class="text-gray-400 hover:text-white">🌐</button>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.php"><i class="fa-solid fa-snowflake me-2"></i>AC Repair
+                Service</a>
+            <div>
+                <a href="technician.php" class="btn btn-outline-light btn-sm me-2"><i
+                        class="fa-solid fa-wrench me-1"></i> สำหรับช่าง</a>
+                <a href="admin.php" class="btn btn-light btn-sm"><i class="fa-solid fa-user-shield me-1"></i>
+                    ผู้ดูแลระบบ</a>
             </div>
         </div>
-    </header>
+    </nav>
 
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 py-8">
-        <section class="bg-gray-900 rounded-2xl shadow-2xl overflow-hidden border border-cyan-500/30 mb-10 relative">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                <div class="p-4">
-                    <img src="<?= $featured_event['image']; ?>" alt="<?= $featured_event['title']; ?>"
-                        class="w-full h-80 object-cover rounded-xl shadow-lg border border-gray-800">
+    <div class="container py-5">
+        <div class="row g-4">
+            <!-- ฟอร์มแจ้งซ่อม -->
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm rounded-4 p-4">
+                    <h4 class="fw-bold text-primary mb-3"><i
+                            class="fa-solid fa-paper-plane me-2"></i>แบบฟอร์มแจ้งซ่อมแอร์</h4>
+                    <form action="index.php" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="action" value="create_ticket">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">ประเภทปัญหา</label>
+                            <select name="category_id" class="form-select" required>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?php echo $cat['id']; ?>"><?php echo $cat['category_name']; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">ระดับความด่วน</label>
+                            <select name="priority" class="form-select">
+                                <option value="low">ปกติ</option>
+                                <option value="medium" selected>ปานกลาง</option>
+                                <option value="high">ด่วน</option>
+                                <option value="urgent">เร่งด่วนมาก (ห้องผู้บริหาร/Server)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">สถานที่ / อาคารและเลขห้อง</label>
+                            <input type="text" name="location" class="form-control"
+                                placeholder="เช่น อาคาร B ชั้น 2 ห้อง 201" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">หัวข้อปัญหา / สรุปอาการ</label>
+                            <input type="text" name="title" class="form-control"
+                                placeholder="เช่น แอร์มีน้ำหยดลงโต๊ะทำงาน" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">รายละเอียดเพิ่มเติม</label>
+                            <textarea name="description" class="form-control" rows="2"
+                                placeholder="ยี่ห้อแอร์ หรือรายละเอียดเพิ่มเติม..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">แนบรูปถ่ายปัญหา (ถ้ามี)</label>
+                            <input type="file" name="image_before" id="image_before_input" class="form-control"
+                                accept="image/*">
+                            <div class="mt-2 text-center">
+                                <img id="preview-img" src="#" alt="ภาพตัวอย่าง"
+                                    class="img-fluid rounded-3 d-none shadow-sm" style="max-height: 180px;">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold"><i
+                                class="fa-solid fa-paper-plane me-1"></i> ส่งข้อมูลแจ้งซ่อม</button>
+                    </form>
                 </div>
-                <div class="p-6 md:pl-0 space-y-4">
-                    <div class="flex items-center space-x-2">
-                        <span
-                            class="bg-cyan-500/10 text-cyan-400 text-xs px-3 py-1 rounded-full font-mono border border-cyan-500/30">FEATURED
-                            IT RUN</span>
-                        <span
-                            class="bg-emerald-500/10 text-emerald-400 text-xs px-3 py-1 rounded-full font-mono border border-emerald-500/30">OPEN
-                            NOW</span>
-                    </div>
-                    <h1 class="text-2xl md:text-3xl font-bold text-white tracking-wide"><?= $featured_event['title']; ?>
-                    </h1>
-                    <p class="text-cyan-300/80 italic text-sm font-light"><?= $featured_event['slogan']; ?></p>
+            </div>
 
-                    <div class="space-y-2 text-sm text-gray-300 pt-2">
-                        <p>📅 <strong class="text-white"><?= $featured_event['date']; ?></strong></p>
-                        <p>📍 <span><?= $featured_event['location']; ?></span></p>
-                        <p class="text-gray-400 text-xs">👤 ผู้จัดงาน: <?= $featured_event['organizer']; ?></p>
-                    </div>
-
-                    <div class="pt-4 flex space-x-3">
-                        <button onclick="openDetailModal()"
-                            class="px-5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg text-sm border border-gray-700 transition">รายละเอียด</button>
-                        <button onclick="openRegisterModal()"
-                            class="px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-medium rounded-lg text-sm shadow-lg shadow-cyan-500/20 transition transform hover:-translate-y-0.5">
-                            สมัครเลย! (เริ่มต้น 450฿)
+            <!-- ค้นหาและติดตามสถานะ -->
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+                    <h4 class="fw-bold text-dark mb-3"><i
+                            class="fa-solid fa-magnifying-glass me-2 text-primary"></i>ติดตามสถานะงานซ่อม</h4>
+                    <form action="index.php" method="GET" class="d-flex gap-2">
+                        <input type="text" name="search" class="form-control"
+                            placeholder="ใส่รหัสแจ้งซ่อม (เช่น AIR-...) หรือชื่อห้อง"
+                            value="<?php echo htmlspecialchars($search); ?>" required>
+                        <button type="submit" class="btn btn-primary px-3 d-flex align-items-center gap-1">
+                            <i class="fa-solid fa-magnifying-glass"></i> ค้นหา
                         </button>
-                    </div>
+                    </form>
                 </div>
-            </div>
-        </section>
 
-        <!-- Events List -->
-        <section>
-            <div class="flex space-x-6 border-b border-gray-800 mb-6 text-lg font-semibold">
-                <button class="text-cyan-400 border-b-2 border-cyan-400 pb-2">งานวิ่งเปิดใหม่</button>
-                <button class="text-gray-500 hover:text-gray-300 pb-2 transition">ยอดนิยม</button>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <?php foreach ($events as $event): ?>
-                    <div
-                        class="bg-gray-900 rounded-xl overflow-hidden shadow-lg hover:shadow-cyan-500/10 transition border border-gray-800 hover:border-cyan-500/40 flex flex-col justify-between">
-                        <div>
-                            <div class="relative">
-                                <img src="<?= $event['image']; ?>" alt="<?= $event['title']; ?>"
-                                    class="w-full h-44 object-cover">
-                                <span
-                                    class="absolute top-2 left-2 bg-gray-950/80 text-cyan-400 text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30">
-                                    <?= $event['tag']; ?>
-                                </span>
+                <?php if (!empty($my_tickets)): ?>
+                    <?php foreach ($my_tickets as $t): ?>
+                        <div class="card border-0 shadow-sm rounded-3 mb-3 p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold text-primary"><i
+                                        class="fa-solid fa-ticket me-1"></i><?php echo $t['ticket_number']; ?></span>
+                                <span class="badge bg-primary px-3 py-2"><?php echo strtoupper($t['status']); ?></span>
                             </div>
-                            <div class="p-4 space-y-2">
-                                <h3 class="font-bold text-sm text-gray-100 line-clamp-2 leading-snug">
-                                    <?= $event['title']; ?>
-                                </h3>
-                                <p class="text-xs text-cyan-400 font-mono"><?= $event['date']; ?></p>
-                                <p class="text-xs text-gray-400 line-clamp-2"><?= $event['location']; ?></p>
+                            <h6 class="fw-bold text-dark"><?php echo htmlspecialchars($t['title']); ?></h6>
+                            <p class="text-muted small mb-1"><i
+                                    class="fa-solid fa-location-dot me-1 text-danger"></i><?php echo htmlspecialchars($t['location']); ?>
+                            </p>
+                            <p class="text-muted small mb-2"><i class="fa-solid fa-user-gear me-1 text-primary"></i>ช่างผู้ดูแล:
+                                <?php echo $t['tech_name'] ?? 'กำลังจัดสรรช่าง'; ?></p>
+
+                            <!-- Timeline ความคืบหน้า -->
+                            <div class="d-flex justify-content-between align-items-center my-3 position-relative px-2">
+                                <div class="progress position-absolute w-100" style="height: 4px; z-index: 0; left:0;">
+                                    <div class="progress-bar bg-success" style="width: <?php
+                                    echo ($t['status'] == 'completed') ? '100%' : (($t['status'] == 'in_progress') ? '66%' : (($t['status'] == 'assigned') ? '33%' : '0%'));
+                                    ?>;"></div>
+                                </div>
+
+                                <div class="text-center position-relative z-1">
+                                    <span
+                                        class="badge rounded-circle p-2 <?php echo ($t['status'] != 'pending') ? 'bg-success text-white' : 'bg-primary'; ?>"><i
+                                            class="fa-solid fa-file-invoice"></i></span>
+                                    <div class="small mt-1" style="font-size: 11px;">รับเรื่อง</div>
+                                </div>
+                                <div class="text-center position-relative z-1">
+                                    <span
+                                        class="badge rounded-circle p-2 <?php echo in_array($t['status'], ['assigned', 'in_progress', 'completed']) ? 'bg-success text-white' : 'bg-secondary'; ?>"><i
+                                            class="fa-solid fa-user-gear"></i></span>
+                                    <div class="small mt-1" style="font-size: 11px;">จ่ายงาน</div>
+                                </div>
+                                <div class="text-center position-relative z-1">
+                                    <span
+                                        class="badge rounded-circle p-2 <?php echo in_array($t['status'], ['in_progress', 'completed']) ? 'bg-success text-white' : 'bg-secondary'; ?>"><i
+                                            class="fa-solid fa-screwdriver-wrench"></i></span>
+                                    <div class="small mt-1" style="font-size: 11px;">กำลังซ่อม</div>
+                                </div>
+                                <div class="text-center position-relative z-1">
+                                    <span
+                                        class="badge rounded-circle p-2 <?php echo ($t['status'] == 'completed') ? 'bg-success text-white' : 'bg-secondary'; ?>"><i
+                                            class="fa-solid fa-check"></i></span>
+                                    <div class="small mt-1" style="font-size: 11px;">เสร็จสิ้น</div>
+                                </div>
                             </div>
+
+                            <?php if ($t['repair_note']): ?>
+                                <div class="p-2 bg-light rounded-3 small"><strong><i
+                                            class="fa-solid fa-comment-dots text-primary me-1"></i>บันทึกช่าง:</strong>
+                                    <?php echo htmlspecialchars($t['repair_note']); ?></div>
+                            <?php endif; ?>
                         </div>
-                    </div>
-                <?php endforeach; ?>
+                    <?php endforeach; ?>
+                <?php elseif ($search !== ''): ?>
+                    <div class="alert alert-warning text-center rounded-3"><i
+                            class="fa-solid fa-circle-exclamation me-1"></i> ไม่พบข้อมูลการแจ้งซ่อมที่ค้นหา</div>
+                <?php endif; ?>
             </div>
-        </section>
-    </main>
-
-    <!-- Modal 1: รายละเอียดงานวิ่ง (Detail Modal) -->
-    <div id="detailModal"
-        class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div
-            class="bg-gray-900 border border-cyan-500/40 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl relative text-gray-200 space-y-6">
-            <button onclick="closeDetailModal()"
-                class="absolute top-4 right-4 text-gray-400 hover:text-white text-xl font-bold">&times;</button>
-
-            <h2 class="text-xl font-bold text-cyan-400 border-b border-gray-800 pb-2">🏆 ถ้วยรางวัล แบ่งชายและหญิง
-                (ไม่มีแบ่งสัญชาติ)</h2>
-
-            <div class="space-y-6 text-sm">
-                <!-- TRAIL 42K -->
-                <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                    <h3 class="text-amber-400 font-bold mb-1">🔰 TRAIL 42 ก.ม.</h3>
-                    <p class="text-xs text-gray-400 mb-3">เสื้อ Finisher สำหรับนักวิ่ง 42 Km, 21 Km, 10 Km
-                        ที่เข้าเส้นชัยทุกคน</p>
-                    <p class="text-xs font-semibold mb-2">ถ้วยรางวัลแยกตามกลุ่มอายุ แบ่งประเภทชายและหญิง (ชาย 5 รางวัล
-                        และ หญิง 5 รางวัล)</p>
-                    <div class="grid grid-cols-2 gap-2 text-center text-xs">
-                        <div class="bg-orange-600 text-white py-1 rounded font-semibold">Male (ชาย)</div>
-                        <div class="bg-orange-600 text-white py-1 rounded font-semibold">Female (หญิง)</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุไม่เกิน 29 ปี</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุไม่เกิน 29 ปี</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุ 30 – 39 ปี</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุ 30 – 39 ปี</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุ 40 – 49 ปี</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุ 40 – 49 ปี</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุ 50 ปีขึ้นไป</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุ 50 ปีขึ้นไป</div>
-                    </div>
-                </div>
-
-                <!-- TRAIL 5K -->
-                <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                    <h3 class="text-amber-400 font-bold mb-1">🔰 TRAIL 5 ก.ม.</h3>
-                    <p class="text-xs font-semibold mb-2">ถ้วยรางวัลแยกตามกลุ่มอายุไม่เกิน 15 ปี และ 16 ปีขึ้นไป</p>
-                    <div class="grid grid-cols-2 gap-2 text-center text-xs">
-                        <div class="bg-orange-600 text-white py-1 rounded font-semibold">Male (ชาย)</div>
-                        <div class="bg-orange-600 text-white py-1 rounded font-semibold">Female (หญิง)</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุไม่เกิน 15 ปี</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุไม่เกิน 15 ปี</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุ 16 ปีขึ้นไป</div>
-                        <div class="bg-gray-800 py-1 rounded border border-gray-700">รุ่นอายุ 16 ปีขึ้นไป</div>
-                    </div>
-                </div>
-
-                <!-- ตารางราคา -->
-                <div class="border-t border-gray-800 pt-4">
-                    <h3 class="text-lg font-bold text-cyan-400 mb-3">💵 ประเภทและราคาค่าสมัคร</h3>
-                    <div class="space-y-4">
-                        <div class="bg-gray-800/40 p-3 rounded-lg border border-gray-700">
-                            <p class="font-bold text-white">เทรล 42 ก.ม.</p>
-                            <p class="text-xs text-gray-400 mb-2">เสื้อที่ระลึก, เหรียญ, หมายเลขวิ่ง, เสื้อ FINISHER
-                                หลังเข้าเส้นชัย</p>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                <div
-                                    class="bg-red-900/60 border border-red-700/50 p-2 rounded flex justify-between items-center">
-                                    <span>ราคาพิเศษ (ถึง 27 ส.ค.)</span>
-                                    <span class="font-bold text-red-300">฿1,800</span>
-                                </div>
-                                <div
-                                    class="bg-gray-800 p-2 rounded flex justify-between items-center border border-gray-700">
-                                    <span>ราคาปกติ (28 ส.ค. เป็นต้นไป)</span>
-                                    <span class="font-bold text-gray-300">฿2,000</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bg-gray-800/40 p-3 rounded-lg border border-gray-700">
-                            <p class="font-bold text-white">เทรล 10 ก.ม.</p>
-                            <p class="text-xs text-gray-400 mb-2">เสื้อที่ระลึก, เหรียญ, หมายเลขวิ่ง</p>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                <div
-                                    class="bg-emerald-900/60 border border-emerald-700/50 p-2 rounded flex justify-between items-center">
-                                    <span>ราคาพิเศษ (ถึง 27 ส.ค.)</span>
-                                    <span class="font-bold text-emerald-300">฿800</span>
-                                </div>
-                                <div
-                                    class="bg-gray-800 p-2 rounded flex justify-between items-center border border-gray-700">
-                                    <span>ราคาปกติ (28 ส.ค. เป็นต้นไป)</span>
-                                    <span class="font-bold text-gray-300">฿1,000</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bg-gray-800/40 p-3 rounded-lg border border-gray-700">
-                            <p class="font-bold text-white">เทรล 5 ก.ม.</p>
-                            <p class="text-xs text-gray-400 mb-2">เสื้อที่ระลึก, เหรียญ, หมายเลขวิ่ง</p>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                <div
-                                    class="bg-amber-900/60 border border-amber-700/50 p-2 rounded flex justify-between items-center">
-                                    <span>ราคาพิเศษ (ถึง 27 ส.ค.)</span>
-                                    <span class="font-bold text-amber-300">฿450</span>
-                                </div>
-                                <div
-                                    class="bg-gray-800 p-2 rounded flex justify-between items-center border border-gray-700">
-                                    <span>ราคาปกติ (28 ส.ค. เป็นต้นไป)</span>
-                                    <span class="font-bold text-gray-300">฿600</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="pt-4 border-t border-gray-800 flex justify-center">
-                <button onclick="closeDetailModal(); openRegisterModal();"
-                    class="px-8 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold rounded-full shadow-lg shadow-cyan-500/30 transition transform hover:scale-105">
-                    สมัครเลย!
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal 2: แบบฟอร์มสมัครวิ่ง (Register Modal) -->
-    <div id="registerModal"
-        class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-gray-900 border border-cyan-500/40 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-            <button onclick="closeRegisterModal()"
-                class="absolute top-4 right-4 text-gray-400 hover:text-white text-xl font-bold">&times;</button>
-            <h2 class="text-xl font-bold text-white mb-1">🏃‍♂️ แบบฟอร์มสมัครวิ่ง IT RUN</h2>
-            <p class="text-xs text-cyan-400/80 mb-6 font-mono">EVENT: <?= $featured_event['title']; ?></p>
-
-            <form action="" method="POST" class="space-y-4">
-                <input type="hidden" name="action" value="register">
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-300 mb-1">ชื่อ - นามสกุล *</label>
-                    <input type="text" name="fullname" required placeholder="นาย สมชาย สายโค้ด"
-                        class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-2.5 text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none">
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-300 mb-1">เลขบัตรประชาชน *</label>
-                        <input type="text" name="id_card" maxlength="13" required placeholder="1234567890123"
-                            class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-2.5 text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-300 mb-1">เบอร์โทรศัพท์ *</label>
-                        <input type="tel" name="phone" required placeholder="0812345678"
-                            class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-2.5 text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-300 mb-1">เลือกระยะทาง & ราคา *</label>
-                        <select name="distance" id="distanceSelect" required onchange="updatePrice()"
-                            class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-2.5 text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none">
-                            <option value="" data-price="0">-- กรุณาเลือก --</option>
-                            <option value="5KM" data-price="450">5 KM (Fun Run) - 450฿</option>
-                            <option value="10KM" data-price="800">10 KM (Mini Marathon) - 800฿</option>
-                            <option value="21KM" data-price="1200">21 KM (Half Marathon) - 1,200฿</option>
-                            <option value="42KM" data-price="1800">42 KM (Full Marathon) - 1,800฿</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-300 mb-1">ไซส์เสื้อ *</label>
-                        <select name="shirt_size" required
-                            class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-2.5 text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none">
-                            <option value="">-- กรุณาเลือก --</option>
-                            <option value="S">S (รอบอก 36")</option>
-                            <option value="M">M (รอบอก 38")</option>
-                            <option value="L">L (รอบอก 40")</option>
-                            <option value="XL">XL (รอบอก 42")</option>
-                            <option value="2XL">2XL (รอบอก 44")</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- แสดงราคาสรุป -->
-                <div
-                    class="bg-gray-800/80 border border-gray-700 rounded-lg p-3 flex justify-between items-center mt-2">
-                    <span class="text-xs text-gray-400">ค่าธรรมเนียมสมัคร:</span>
-                    <span id="priceDisplay" class="text-lg font-bold text-cyan-400">0 ฿</span>
-                </div>
-
-                <div class="pt-4 flex justify-end space-x-3 border-t border-gray-800 mt-6">
-                    <button type="button" onclick="closeRegisterModal()"
-                        class="px-4 py-2 border border-gray-700 rounded-lg text-sm text-gray-400 hover:bg-gray-800">ยกเลิก</button>
-                    <button type="submit"
-                        class="px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg text-sm font-semibold shadow-lg shadow-cyan-500/20">ยืนยันการสมัคร</button>
-                </div>
-            </form>
         </div>
     </div>
 
     <script>
-        // Detail Modal
-        function openDetailModal() {
-            document.getElementById('detailModal').classList.remove('hidden');
-            document.getElementById('detailModal').classList.add('flex');
-        }
-        function closeDetailModal() {
-            document.getElementById('detailModal').classList.add('hidden');
-            document.getElementById('detailModal').classList.remove('flex');
-        }
-
-        // Register Modal
-        function openRegisterModal() {
-            document.getElementById('registerModal').classList.remove('hidden');
-            document.getElementById('registerModal').classList.add('flex');
-        }
-        function closeRegisterModal() {
-            document.getElementById('registerModal').classList.add('hidden');
-            document.getElementById('registerModal').classList.remove('flex');
-        }
-
-        // Auto Price Calculation
-        function updatePrice() {
-            const select = document.getElementById('distanceSelect');
-            const selectedOption = select.options[select.selectedIndex];
-            const price = selectedOption.getAttribute('data-price') || 0;
-            document.getElementById('priceDisplay').innerText = Number(price).toLocaleString() + ' ฿';
-        }
+        // Live Image Preview
+        document.getElementById('image_before_input').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('preview-img');
+            if (file) {
+                preview.src = URL.createObjectURL(file);
+                preview.classList.remove('d-none');
+            }
+        });
     </script>
+
+    <?php
+    // การประมวลผลเมื่อกดบันทึก
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_ticket') {
+        if ($db_connected) {
+            $category_id = $_POST['category_id'];
+            $priority = $_POST['priority'];
+            $location = trim($_POST['location']);
+            $title = trim($_POST['title']);
+            $description = trim($_POST['description']);
+            $ticket_number = 'AIR-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -4));
+
+            $image_before = NULL;
+            if (isset($_FILES['image_before']) && $_FILES['image_before']['error'] == 0) {
+                $ext = pathinfo($_FILES['image_before']['name'], PATHINFO_EXTENSION);
+                $filename = time() . '_' . uniqid() . '.' . $ext;
+                if (!is_dir('uploads')) {
+                    mkdir('uploads', 0777, true);
+                }
+                if (move_uploaded_file($_FILES['image_before']['tmp_name'], 'uploads/' . $filename)) {
+                    $image_before = $filename;
+                }
+            }
+
+            $stmt = $conn->prepare("INSERT INTO tickets (ticket_number, category_id, priority, location, title, description, image_before, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW())");
+            $stmt->bind_param("sisssss", $ticket_number, $category_id, $priority, $location, $title, $description, $image_before);
+
+            if ($stmt->execute()) {
+                echo "<script>
+                Swal.fire({
+                    title: 'ส่งแจ้งซ่อมสำเร็จ!',
+                    text: 'รหัสติดตามของคุณคือ: $ticket_number',
+                    icon: 'success',
+                    confirmButtonText: 'ตกลง'
+                }).then(() => { window.location.href='index.php?search=$ticket_number'; });
+            </script>";
+            }
+        }
+    }
+    ?>
+
 </body>
 
 </html>
